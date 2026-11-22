@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniApp AI Builder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: #0f172a; color: #f8fafc; padding: 20px; display: flex; flex-direction: column; gap: 20px; height: 100vh; }
+    header { text-align: center; }
+    header h1 { font-size: 1.8rem; color: #38bdf8; }
+    .container { display: flex; gap: 20px; flex: 1; min-height: 0; }
+    .control-panel { width: 340px; display: flex; flex-direction: column; gap: 15px; background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; }
+    textarea { width: 100%; height: 130px; padding: 12px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; resize: none; font-size: 14px; }
+    textarea:focus { outline: none; border-color: #38bdf8; }
+    button { padding: 12px; border-radius: 8px; border: none; background: #0284c7; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 15px; }
+    button:hover { background: #0369a1; }
+    button:disabled { background: #475569; cursor: not-allowed; }
+    .btn-pay { background: #16a34a; }
+    .btn-pay:hover { background: #15803d; }
+    .status { font-size: 13px; color: #94a3b8; line-height: 1.4; }
+    .preview-panel { flex: 1; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #334155; display: flex; flex-direction: column; }
+    .preview-header { background: #1e293b; color: #38bdf8; padding: 12px 18px; font-weight: bold; font-size: 14px; border-bottom: 1px solid #334155; }
+    iframe { width: 100%; height: 100%; border: none; background: white; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>OmniApp AI Builder</h1>
+  </header>
+
+  <div class="container">
+    <!-- Controls Sidebar -->
+    <div class="control-panel">
+      <label for="promptInput"><strong>Describe the App You Want:</strong></label>
+      <textarea id="promptInput" placeholder="e.g. Create an interactive Pomodoro timer app with dark mode..."></textarea>
+      
+      <button id="generateBtn" onclick="generateApp()">🚀 Generate App</button>
+      <button class="btn-pay" onclick="payWithFlutterwave()">💳 Buy Credits (10,000 UGX)</button>
+      
+      <div id="statusText" class="status">Status: Ready</div>
+    </div>
+
+    <!-- Live Preview Frame -->
+    <div class="preview-panel">
+      <div id="appTitle" class="preview-header">Live Preview Window</div>
+      <iframe id="previewFrame" title="App Preview"></iframe>
+    </div>
+  </div>
+
+  <script>
+    // 🚀 App Generation Function
+    async function generateApp() {
+      const prompt = document.getElementById('promptInput').value.trim();
+      const statusText = document.getElementById('statusText');
+      const btn = document.getElementById('generateBtn');
+      const iframe = document.getElementById('previewFrame');
+      const titleSpan = document.getElementById('appTitle');
+
+      if (!prompt) {
+        alert('Please enter an app prompt first!');
+        return;
+      }
+
+      statusText.innerText = '⚡ Gemini AI is writing your code...';
+      btn.disabled = true;
+
+      try {
+        // Uses relative endpoint so it works both locally and on live hosting
+        const response = await fetch('/api/generate-app', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          statusText.innerText = '❌ Error: ' + (data.details || data.error);
+          btn.disabled = false;
+          return;
+        }
+
+        titleSpan.innerText = 'Live Preview: ' + (data.appName || 'Generated App');
+        statusText.innerText = '✅ App built & saved to Supabase!';
+
+        let htmlContent = '';
+        let cssContent = '';
+        let jsContent = '';
+
+        if (data.files && Array.isArray(data.files)) {
+          data.files.forEach(file => {
+            if (file.file_type === 'html' || file.file_path.endsWith('.html')) htmlContent = file.file_content;
+            if (file.file_type === 'css' || file.file_path.endsWith('.css')) cssContent = file.file_content;
+            if (file.file_type === 'js' || file.file_path.endsWith('.js')) jsContent = file.file_content;
+          });
+        }
+
+        // Bundle code directly into executable iframe document
+        const fullDocument = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <style>${cssContent}</style>
+            </head>
+            <body>
+              ${htmlContent}
+              <script>${jsContent}<\/script>
+            </body>
+          </html>
+        `;
+
+        iframe.srcdoc = fullDocument;
+
+      } catch (err) {
+        console.error(err);
+        statusText.innerText = '❌ Failed to connect to server.';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // 💳 Flutterwave Mobile Money Payment Function
+    async function payWithFlutterwave() {
+      const email = prompt('Enter your email:', 'user@example.com');
+      const phone = prompt('Enter your MTN/Airtel phone number:', '0770000000');
+      
+      if (!email || !phone) return;
+
+      try {
+        const res = await fetch('/api/pay-flutterwave', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email,
+            phone_number: phone,
+            amount_ugx: 10000
+          })
+        });
+
+        const data = await res.json();
+        if (data.payment_url) {
+          window.location.href = data.payment_url;
+        } else {
+          alert('Payment setup failed: ' + JSON.stringify(data.details));
+        }
+      } catch (err) {
+        alert('Error connecting to backend server.');
+      }
+    }
+  </script>
+</body>
+</html>
